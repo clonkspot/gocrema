@@ -154,6 +154,8 @@ func tryConnectNetpuncher(a *NetpuncherAddr) bool {
 	}
 	conn.Write(b)
 	log.WithField("packet", fmt.Sprintf("%+v", sreq)).Debugf("tryConnectNetpuncher: -> %T", sreq)
+	// TODO: Not sure whether this works.
+	conn.SetDeadline(time.Now().Add(connectTimeout))
 
 	for {
 		msg, err := netpuncher.ReadFrom(conn)

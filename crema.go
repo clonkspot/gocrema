@@ -8,10 +8,12 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/apex/log"
-	"github.com/apex/log/handlers/cli"
+	"github.com/apex/log/handlers/text"
+	"github.com/gin-gonic/gin"
 	"github.com/lluchs/gocrema/eventsource"
 )
 
@@ -19,7 +21,7 @@ import (
 var GameEventsURL = "https://clonkspot.org/league/game_events.php"
 
 // LeagueURL is the URL to the league server.
-var LeagueURL = "https://clonkspot.org/league/league.php"
+var LeagueURL = "http://league.clonkspot.org:80/"
 
 func getGameAddresses(id int) ([]net.Addr, error) {
 	url := fmt.Sprintf("%s?action=query&game_id=%d", LeagueURL, id)
@@ -72,12 +74,39 @@ func getGameAddresses(id int) ([]net.Addr, error) {
 }
 
 func main() {
-	log.SetHandler(cli.Default)
+	log.SetHandler(text.Default)
+	//log.SetLevel(log.DebugLevel)
 
 	cache := NewCache()
 
 	go monitorGames(cache)
 
+	r := gin.Default()
+	r.LoadHTMLGlob("templates/*")
+	r.GET("/", func(c *gin.Context) {
+		games := cache.Get()
+		status := make(map[int]string)
+		for id, g := range games {
+			s := "failure"
+		addrloop:
+			for _, addr := range g.Addrs {
+				switch addr.Status {
+				case ConnectStatusSuccess:
+					s = "success"
+					break addrloop
+				case ConnectStatusPending:
+					s = "pending"
+				}
+			}
+			status[id] = s
+		}
+		c.HTML(http.StatusOK, "layout.html", gin.H{
+			"Games":     games,
+			"Status":    status,
+			"LeagueURL": strings.Replace(LeagueURL, "http://", "", 1),
+		})
+	})
+	r.Run()
 	for {
 		time.Sleep(10 * time.Second)
 		games := cache.Get()
