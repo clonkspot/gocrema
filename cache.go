@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"net"
-	"time"
 )
 
 // ConnectStatus is the result of a connection check
@@ -28,88 +27,184 @@ func (s ConnectStatus) String() string {
 	}
 }
 
-// cacheDuration is how long an entry stays in the cache.
-var cacheDuration = 10 * time.Minute
-
 // Cache is responsible for storing connection tests.
 type Cache struct {
-	addrs       map[string]*CacheItem
-	requestChan chan cacheRequestInternal
-	resultChan  chan *CacheItem
+	games             map[int]CacheItem
+	updateRequestChan chan cacheReq
+	checkResultChan   chan cacheCheckMsg
+	requestGamesChan  chan chan map[int]CacheItem
 }
 
 // NewCache creates a new cache.
 func NewCache() *Cache {
 	c := &Cache{
-		addrs:       make(map[string]*CacheItem),
-		requestChan: make(chan cacheRequestInternal),
-		resultChan:  make(chan *CacheItem),
+		games:             make(map[int]CacheItem),
+		updateRequestChan: make(chan cacheReq),
+		checkResultChan:   make(chan cacheCheckMsg),
+		requestGamesChan:  make(chan chan map[int]CacheItem),
 	}
 	go c.run()
 	return c
 }
 
+// UpdateAllGames inserts and updates the given games, deleting all others from
+// the cache.
+func (c *Cache) UpdateAllGames(games []LeagueGame) {
+	c.updateRequestChan <- cacheReq{
+		reqType: reqUpdateAll,
+		payload: games,
+	}
+}
+
+// UpdateGame inserts or updates a single game.
+func (c *Cache) UpdateGame(game LeagueGame) {
+	c.updateRequestChan <- cacheReq{
+		reqType: reqUpdateSingle,
+		id:      game.ID,
+		payload: game,
+	}
+}
+
+// UpdateAddrs updates a game's addresses.
+func (c *Cache) UpdateAddrs(id int, addrs []net.Addr) {
+	c.updateRequestChan <- cacheReq{
+		reqType: reqUpdateAddrs,
+		id:      id,
+		payload: addrs,
+	}
+}
+
+// DeleteGame removes a game from the cache.
+func (c *Cache) DeleteGame(id int) {
+	c.updateRequestChan <- cacheReq{
+		reqType: reqDelete,
+		id:      id,
+	}
+}
+
+// Get retrieves a copy of the currently-cached games.
+func (c *Cache) Get() map[int]CacheItem {
+	res := make(chan map[int]CacheItem)
+	c.requestGamesChan <- res
+	return <-res
+}
+
+// internal (run): copyState copies the cache state.
+func (c *Cache) copyState() map[int]CacheItem {
+	games := make(map[int]CacheItem)
+	for id, game := range c.games {
+		g := game
+		g.Addrs = make(map[string]CacheItemAddr)
+		for key, addr := range game.Addrs {
+			g.Addrs[key] = addr
+		}
+		games[id] = g
+	}
+	return games
+}
+
 // run starts the cache main loop.
 func (c *Cache) run() {
+	updateGame := func(game *LeagueGame) {
+		g, ok := c.games[game.ID]
+		if !ok {
+			g = CacheItem{Addrs: make(map[string]CacheItemAddr)}
+		}
+		g.Game = *game
+		c.games[game.ID] = g
+	}
 	for {
-		// TODO: Expire old cache items
 		select {
-		case ri := <-c.requestChan:
-			if item, ok := c.addrs[ri.req.key()]; ok {
-				// return the item
-				ri.reply <- item
-			} else {
-				// item is not in cache, check it now
-				c.addrs[ri.req.key()] = &CacheItem{CacheRequest: *ri.req, Status: ConnectStatusPending, expiry: time.Now().Add(cacheDuration)}
-				ri.reply <- c.addrs[ri.req.key()]
-				go c.check(ri.req)
+		case req := <-c.updateRequestChan:
+			switch req.reqType {
+			case reqUpdateAll:
+				games := req.payload.([]LeagueGame)
+				seen := make(map[int]bool)
+				for _, game := range games {
+					updateGame(&game)
+					seen[game.ID] = true
+				}
+				// delete games that weren't updated
+				for id := range c.games {
+					if !seen[id] {
+						delete(c.games, id)
+					}
+				}
+			case reqUpdateSingle:
+				game := req.payload.(LeagueGame)
+				updateGame(&game)
+			case reqUpdateAddrs:
+				// drop request for unknown games
+				if game, ok := c.games[req.id]; ok {
+					addrs := req.payload.([]net.Addr)
+					for _, addr := range addrs {
+						if !shouldSkipAddr(addr) {
+							if _, ok := game.Addrs[cacheAddrKey(addr)]; !ok {
+								// item is not in cache, check it now
+								game.Addrs[cacheAddrKey(addr)] = CacheItemAddr{Addr: addr, Status: ConnectStatusPending}
+								go c.check(cacheCheckMsg{id: req.id, addr: addr})
+							}
+						}
+					}
+				}
+			case reqDelete:
+				delete(c.games, req.id)
 			}
-		case res := <-c.resultChan:
-			c.addrs[res.key()] = res
+		case res := <-c.checkResultChan:
+			if game, ok := c.games[res.id]; ok {
+				key := cacheAddrKey(res.addr)
+				a := game.Addrs[key]
+				a.Status = res.status
+				game.Addrs[key] = a
+			}
+		case resChan := <-c.requestGamesChan:
+			resChan <- c.copyState()
 		}
 	}
 }
 
+type cacheCheckMsg struct {
+	id     int           // game id
+	addr   net.Addr      // address to check
+	status ConnectStatus // reply: status
+}
+
 // check tries to connect to the given address. Should be run from a goroutine.
-func (c *Cache) check(req *CacheRequest) {
-	status := ConnectStatusFailure
-	if tryConnect(req.Addr) {
-		status = ConnectStatusSuccess
+func (c *Cache) check(req cacheCheckMsg) {
+	req.status = ConnectStatusFailure
+	if tryConnect(req.addr) {
+		req.status = ConnectStatusSuccess
 	}
-	c.resultChan <- &CacheItem{
-		CacheRequest: *req,
-		Status:       status,
-		expiry:       time.Now().Add(cacheDuration),
-	}
+	c.checkResultChan <- req
 }
 
-// Get retrieves the status of an address from the cache.
-func (c *Cache) Get(req CacheRequest) ConnectStatus {
-	reply := make(chan *CacheItem)
-	c.requestChan <- cacheRequestInternal{req: &req, reply: reply}
-	item := <-reply
-	return item.Status
+type cacheReqType int
+
+const (
+	reqUpdateAll cacheReqType = iota
+	reqUpdateSingle
+	reqUpdateAddrs
+	reqDelete
+)
+
+type cacheReq struct {
+	reqType cacheReqType
+	id      int
+	payload interface{}
 }
 
-// CacheRequest is a request to check a possibly-new address.
-type CacheRequest struct {
-	ID   int      // ID is the game's id from the league
-	Addr net.Addr // Addr is the potential address to connect to
-}
-
-// key returns a string key for putting the request in a hash map.
-func (req *CacheRequest) key() string {
-	return fmt.Sprintf("%d:%s:%s", req.ID, req.Addr.Network(), req.Addr.String())
-}
-
-type cacheRequestInternal struct {
-	req   *CacheRequest
-	reply chan *CacheItem
-}
-
-// CacheItem is an address that has been checked.
+// CacheItem is a game with associated addresses.
 type CacheItem struct {
-	CacheRequest
+	Game  LeagueGame               // includes ID
+	Addrs map[string]CacheItemAddr // indexed by cacheAddrKey
+}
+
+func cacheAddrKey(a net.Addr) string {
+	return fmt.Sprintf("%s:%s", a.Network(), a.String())
+}
+
+// CacheItemAddr is a single address that has been checked.
+type CacheItemAddr struct {
+	Addr   net.Addr
 	Status ConnectStatus
-	expiry time.Time
 }

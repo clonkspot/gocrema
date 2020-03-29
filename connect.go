@@ -153,7 +153,7 @@ func tryConnectNetpuncher(a *NetpuncherAddr) bool {
 		return false
 	}
 	conn.Write(b)
-	log.WithField("packet", fmt.Sprintf("%+v", sreq)).Infof("tryConnectNetpuncher: -> %T", sreq)
+	log.WithField("packet", fmt.Sprintf("%+v", sreq)).Debugf("tryConnectNetpuncher: -> %T", sreq)
 
 	for {
 		msg, err := netpuncher.ReadFrom(conn)
@@ -163,9 +163,9 @@ func tryConnectNetpuncher(a *NetpuncherAddr) bool {
 		}
 		switch np := msg.(type) {
 		case *netpuncher.AssID:
-			log.Infof("tryConnectNetpuncher: CID = %d", np.CID)
+			log.Debugf("tryConnectNetpuncher: CID = %d", np.CID)
 		case *netpuncher.CReq:
-			log.WithField("packet", fmt.Sprintf("%+v", msg)).Infof("tryConnectNetpuncher: <- %T", msg)
+			log.WithField("packet", fmt.Sprintf("%+v", msg)).Debugf("tryConnectNetpuncher: <- %T", msg)
 			// Try to establish communication.
 			if err = listener.Punch(&np.Addr, connectTimeout, punchInterval); err != nil {
 				log.WithError(err).WithField("raddr", np.Addr.String()).Error("tryConnectNetpuncher: punching failed")
@@ -174,7 +174,7 @@ func tryConnectNetpuncher(a *NetpuncherAddr) bool {
 			// Punching success!
 			return true
 		default:
-			log.WithField("packet", fmt.Sprintf("%+v", msg)).Infof("tryConnectNetpuncher: <- %T", msg)
+			log.WithField("packet", fmt.Sprintf("%+v", msg)).Debugf("tryConnectNetpuncher: <- %T", msg)
 		}
 	}
 }

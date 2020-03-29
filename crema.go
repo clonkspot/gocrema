@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
+	"time"
 
 	"github.com/apex/log"
 	"github.com/apex/log/handlers/cli"
@@ -70,56 +71,71 @@ func getGameAddresses(id int) ([]net.Addr, error) {
 	return addrs, nil
 }
 
-// printAddrStatus prints the connection status for all addresses of game #id.
-func printAddrStatus(cache *Cache, id int) {
-	addrs, err := getGameAddresses(id)
-	if err != nil {
-		fmt.Printf("error getting addresses: %v\n", err)
-		return
-	}
-	fmt.Printf("game %d\n", id)
-	for _, addr := range addrs {
-		if shouldSkipAddr(addr) {
-			continue
-		}
-		fmt.Printf(" - %s:%s -> %s\n", addr.Network(), addr, cache.Get(CacheRequest{ID: id, Addr: addr}))
-	}
-}
-
 func main() {
 	log.SetHandler(cli.Default)
 
+	cache := NewCache()
+
+	go monitorGames(cache)
+
+	for {
+		time.Sleep(10 * time.Second)
+		games := cache.Get()
+		for _, g := range games {
+			fmt.Printf("%s on %s (#%d)\n", g.Game.Title, g.Game.Host, g.Game.ID)
+			for key, addr := range g.Addrs {
+				fmt.Printf(" - %s: %s\n", key, addr.Status)
+			}
+			fmt.Println()
+		}
+	}
+}
+
+func monitorGames(c *Cache) {
 	es := eventsource.New(GameEventsURL)
 	defer es.Close()
-
-	cache := NewCache()
 
 	for {
 		select {
 		case <-es.OnOpen:
-			fmt.Println("open")
+			// do nothing
 		case msg := <-es.OnMessage:
 			switch msg.EventType {
 			case "init":
 				var games []LeagueGame
 				if err := json.Unmarshal([]byte(msg.Data), &games); err != nil {
-					fmt.Println("error parsing JSON", err)
+					log.WithError(err).Error("init: error parsing JSON")
 					break
 				}
-				fmt.Printf("init with %d games\n", len(games))
+				log.Infof("init with %d games\n", len(games))
+				c.UpdateAllGames(games)
 				for _, game := range games {
-					printAddrStatus(cache, game.ID)
+					addrs, err := getGameAddresses(game.ID)
+					if err != nil {
+						log.WithError(err).WithField("id", game.ID).Error("init: error getting addresses")
+						continue
+					}
+					c.UpdateAddrs(game.ID, addrs)
 				}
-			case "create":
-				fallthrough
-			case "update":
+			case "create", "update":
 				var game LeagueGame
 				if err := json.Unmarshal([]byte(msg.Data), &game); err != nil {
-					fmt.Println("error parsing JSON", err)
+					log.WithError(err).Error("create/update: error parsing JSON")
 					break
 				}
-				fmt.Printf("event %s: %+v\n", msg.EventType, game)
-				printAddrStatus(cache, game.ID)
+				addrs, err := getGameAddresses(game.ID)
+				if err != nil {
+					log.WithError(err).WithField("id", game.ID).Error("create/update: error getting addresses")
+					break
+				}
+				c.UpdateAddrs(game.ID, addrs)
+			case "end", "delete":
+				var game LeagueGame
+				if err := json.Unmarshal([]byte(msg.Data), &game); err != nil {
+					log.WithError(err).Error("end/delete: error parsing JSON")
+					break
+				}
+				c.DeleteGame(game.ID)
 			default:
 				fmt.Println(msg.EventType, msg.Data)
 			}
