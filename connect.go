@@ -5,6 +5,8 @@ import (
 	"net"
 	"time"
 
+	"github.com/apex/log"
+	"github.com/openclonk/netpuncher"
 	"github.com/openclonk/netpuncher/c4netioudp"
 )
 
@@ -41,6 +43,8 @@ func shouldSkipAddr(addr net.Addr) bool {
 		ip = a.IP
 	case *net.UDPAddr:
 		ip = a.IP
+	case *NetpuncherAddr:
+		return false
 	default:
 		// unknown address type, skip
 		return true
@@ -64,6 +68,8 @@ func tryConnect(addr net.Addr) bool {
 		return tryConnectTCP(a)
 	case *net.UDPAddr:
 		return tryConnectUDP(a)
+	case *NetpuncherAddr:
+		return tryConnectNetpuncher(a)
 	default:
 		return false
 	}
@@ -93,4 +99,82 @@ func tryConnectUDP(addr *net.UDPAddr) bool {
 	}
 	// assume that the connection was successful if we received anything
 	return n > 0
+}
+
+// NetpuncherAddr is a net.Addr for a netpuncher connection.
+type NetpuncherAddr struct {
+	Net  string
+	Addr string
+	ID   uint64
+}
+
+// Network implements net.Addr
+func (a *NetpuncherAddr) Network() string {
+	return a.Net
+}
+
+func (a *NetpuncherAddr) String() string {
+	return fmt.Sprintf("%s#%d", a.Addr, a.ID)
+}
+
+const (
+	punchInterval = 100 * time.Millisecond
+)
+
+func tryConnectNetpuncher(a *NetpuncherAddr) bool {
+	network := "udp"
+	raddr, err := net.ResolveUDPAddr(network, a.Addr)
+	if err != nil {
+		log.WithError(err).WithField("addr", a.Addr).Errorf("tryConnectNetpuncher: invalid netpuncher address")
+		return false
+	}
+	listener, err := c4netioudp.Listen(network, nil)
+	if err != nil {
+		log.WithError(err).Error("tryConnectNetpuncher: c4netioudp Listen failed")
+		return false
+	}
+	defer listener.Close()
+
+	conn, err := listener.Dial(raddr)
+	if err != nil {
+		log.WithError(err).Error("tryConnectNetpuncher: c4netioudp Dial failed")
+		return false
+	}
+	defer conn.Close()
+
+	// The following uses version 1 of the netpuncher protocol.
+	header := netpuncher.Header{Version: 1}
+
+	// Request punching for the given host id.
+	sreq := netpuncher.SReq{Header: header, CID: uint32(a.ID)}
+	b, err := sreq.MarshalBinary()
+	if err != nil {
+		log.WithError(err).Error("tryConnectNetpuncher: SReq.MarshalBinary failed")
+		return false
+	}
+	conn.Write(b)
+	log.WithField("packet", fmt.Sprintf("%+v", sreq)).Infof("tryConnectNetpuncher: -> %T", sreq)
+
+	for {
+		msg, err := netpuncher.ReadFrom(conn)
+		if err != nil {
+			log.WithError(err).Error("tryConnectNetpuncher: reading from netpuncher failed")
+			return false
+		}
+		switch np := msg.(type) {
+		case *netpuncher.AssID:
+			log.Infof("tryConnectNetpuncher: CID = %d", np.CID)
+		case *netpuncher.CReq:
+			log.WithField("packet", fmt.Sprintf("%+v", msg)).Infof("tryConnectNetpuncher: <- %T", msg)
+			// Try to establish communication.
+			if err = listener.Punch(&np.Addr, connectTimeout, punchInterval); err != nil {
+				log.WithError(err).WithField("raddr", np.Addr.String()).Error("tryConnectNetpuncher: punching failed")
+				return false
+			}
+			// Punching success!
+			return true
+		default:
+			log.WithField("packet", fmt.Sprintf("%+v", msg)).Infof("tryConnectNetpuncher: <- %T", msg)
+		}
+	}
 }

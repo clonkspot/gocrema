@@ -7,7 +7,10 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"strconv"
 
+	"github.com/apex/log"
+	"github.com/apex/log/handlers/cli"
 	"github.com/lluchs/gocrema/eventsource"
 )
 
@@ -49,7 +52,21 @@ func getGameAddresses(id int) ([]net.Addr, error) {
 			return nil, err
 		}
 	}
-	// TODO: Also retrieve netpuncher info
+
+	// Netpuncher info
+	npaddrre := regexp.MustCompile(`(?m)^NetpuncherAddr="([^"]+)"$`)
+	m = npaddrre.FindSubmatch(body)
+	if m != nil {
+		netpuncherAddr := string(m[1])
+		// Just match the IPv4/IPv6 lines, don't bother with the exact format
+		npre := regexp.MustCompile(`(?m)^ +IPv([46])=([0-9]+)$`)
+		ms := npre.FindAllSubmatch(body, -1)
+		for _, m := range ms {
+			id, _ := strconv.ParseUint(string(m[2]), 10, 64)
+			addrs = append(addrs, &NetpuncherAddr{Net: "netpuncher" + string(m[1]), Addr: netpuncherAddr, ID: id})
+		}
+	}
+
 	return addrs, nil
 }
 
@@ -70,6 +87,8 @@ func printAddrStatus(cache *Cache, id int) {
 }
 
 func main() {
+	log.SetHandler(cli.Default)
+
 	es := eventsource.New(GameEventsURL)
 	defer es.Close()
 
