@@ -7,6 +7,7 @@ package eventsource
 import (
 	"bufio"
 	"fmt"
+	"mime"
 	"net/http"
 	"strconv"
 	"strings"
@@ -88,7 +89,7 @@ func (es *EventSource) receive() {
 			es.OnError <- err
 			continue
 		}
-		if ct := res.Header.Get("Content-Type"); ct != "text/event-stream" {
+		if ct, _, err := mime.ParseMediaType(res.Header.Get("Content-Type")); err != nil || ct != "text/event-stream" {
 			es.OnError <- fmt.Errorf("The sever returned an invalid Content-Type: %s", ct)
 			continue
 		}
