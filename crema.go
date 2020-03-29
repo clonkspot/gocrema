@@ -13,8 +13,8 @@ import (
 
 	"github.com/apex/log"
 	"github.com/apex/log/handlers/text"
+	"github.com/clonkspot/gocrema/eventsource"
 	"github.com/gin-gonic/gin"
-	"github.com/lluchs/gocrema/eventsource"
 )
 
 // GameEventsURL is the URL to the league event stream.

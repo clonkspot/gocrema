@@ -1,4 +1,4 @@
-module github.com/lluchs/gocrema
+module github.com/clonkspot/gocrema
 
 go 1.14
 
