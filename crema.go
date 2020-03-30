@@ -152,6 +152,7 @@ func monitorGames(c *Cache) {
 					log.WithError(err).Error("create/update: error parsing JSON")
 					break
 				}
+				c.UpdateGame(game)
 				addrs, err := getGameAddresses(game.ID)
 				if err != nil {
 					log.WithError(err).WithField("id", game.ID).Error("create/update: error getting addresses")
