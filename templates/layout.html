@@ -22,6 +22,25 @@
     <script src="https://code.jquery.com/jquery-3.4.1.slim.min.js" integrity="sha256-pasqAKBDmFT4eHoN2ndd6lN370kFiGUFyTiUHWhU7k8=" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js" integrity="sha256-x3YZWtRjM8bJqf48dFAv/qmgL68SI4jqNWeSLMZaMGA=" crossorigin="anonymous"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js" integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" crossorigin="anonymous"></script>
+
+    <script>
+var es = new EventSource('/updates')
+es.addEventListener('update', function(e) {
+  var data = JSON.parse(e.data)
+  var el = $('#game'+data.id)
+  if (el.length) {
+    var addrVisible = $('#addresses'+data.id).hasClass('show')
+    el.replaceWith(data.html)
+    if (addrVisible)
+      $('#addresses'+data.id).addClass('show')
+  } else
+    $('#games').append(data.html)
+})
+es.addEventListener('delete', function(e) {
+  var data = JSON.parse(e.data)
+  $('#game'+data.id).remove()
+})
+    </script>
   </body>
 </html>
 {{/* vim: set ft=gohtmltmpl: */}}

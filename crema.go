@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -15,6 +16,7 @@ import (
 	"github.com/apex/log/handlers/text"
 	"github.com/clonkspot/gocrema/eventsource"
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/render"
 )
 
 // GameEventsURL is the URL to the league event stream.
@@ -108,12 +110,44 @@ func main() {
 	}
 	r.SetFuncMap(funcmap)
 	r.LoadHTMLGlob("templates/*")
+	tmplLeagueURL := strings.Replace(LeagueURL, "http://", "", 1)
 	r.GET("/", func(c *gin.Context) {
 		games := cache.Get()
 		c.HTML(http.StatusOK, "layout.html", gin.H{
 			"Games":     games,
-			"LeagueURL": strings.Replace(LeagueURL, "http://", "", 1),
+			"LeagueURL": tmplLeagueURL,
 		})
+	})
+	r.GET("/updates", func(c *gin.Context) {
+		c.Header("Content-Type", "text/event-stream")
+		updates := cache.GameUpdates.Register()
+		defer cache.GameUpdates.Unregister(updates)
+		for update := range updates {
+			u := update.(*CacheUpdate)
+			if u.G != nil {
+				// this kind of sucks
+				html := r.HTMLRender.Instance("gamerow.html", gin.H{
+					"ID":        u.ID,
+					"G":         u.G,
+					"LeagueURL": tmplLeagueURL,
+				}).(render.HTML)
+
+				var output bytes.Buffer
+				if err := html.Template.ExecuteTemplate(&output, html.Name, html.Data); err != nil {
+					c.Error(err)
+					return
+				}
+				c.SSEvent("update", gin.H{
+					"id":   u.ID,
+					"html": output.String(),
+				})
+			} else {
+				c.SSEvent("delete", gin.H{"id": u.ID})
+			}
+			if f, ok := c.Writer.(http.Flusher); ok {
+				f.Flush()
+			}
+		}
 	})
 	r.Run()
 }

@@ -33,6 +33,7 @@ type Cache struct {
 	updateRequestChan chan cacheReq
 	checkResultChan   chan cacheCheckMsg
 	requestGamesChan  chan chan map[int]CacheItem
+	GameUpdates       *Notifier // notifies about updated cache items (CacheUpdate)
 }
 
 // NewCache creates a new cache.
@@ -42,6 +43,7 @@ func NewCache() *Cache {
 		updateRequestChan: make(chan cacheReq),
 		checkResultChan:   make(chan cacheCheckMsg),
 		requestGamesChan:  make(chan chan map[int]CacheItem),
+		GameUpdates:       NewNotifier(),
 	}
 	go c.run()
 	return c
@@ -93,14 +95,20 @@ func (c *Cache) Get() map[int]CacheItem {
 func (c *Cache) copyState() map[int]CacheItem {
 	games := make(map[int]CacheItem)
 	for id, game := range c.games {
-		g := game
-		g.Addrs = make(map[string]CacheItemAddr)
-		for key, addr := range game.Addrs {
-			g.Addrs[key] = addr
-		}
-		games[id] = g
+		games[id] = game.Clone()
 	}
 	return games
+}
+
+// internal (run): notifyGameUpdate notifies listeners about an updated game.
+func (c *Cache) notifyGameUpdate(id int) {
+	if g, ok := c.games[id]; ok {
+		g2 := g.Clone()
+		c.GameUpdates.Notify(&CacheUpdate{ID: id, G: &g2})
+	} else {
+		// game deleted
+		c.GameUpdates.Notify(&CacheUpdate{ID: id, G: nil})
+	}
 }
 
 // run starts the cache main loop.
@@ -123,16 +131,19 @@ func (c *Cache) run() {
 				for _, game := range games {
 					updateGame(&game)
 					seen[game.ID] = true
+					c.notifyGameUpdate(game.ID)
 				}
 				// delete games that weren't updated
 				for id := range c.games {
 					if !seen[id] {
 						delete(c.games, id)
+						c.notifyGameUpdate(id)
 					}
 				}
 			case reqUpdateSingle:
 				game := req.payload.(LeagueGame)
 				updateGame(&game)
+				c.notifyGameUpdate(game.ID)
 			case reqUpdateAddrs:
 				// drop request for unknown games
 				if game, ok := c.games[req.id]; ok {
@@ -149,6 +160,7 @@ func (c *Cache) run() {
 				}
 			case reqDelete:
 				delete(c.games, req.id)
+				c.notifyGameUpdate(req.id)
 			}
 		case res := <-c.checkResultChan:
 			if game, ok := c.games[res.id]; ok {
@@ -156,6 +168,7 @@ func (c *Cache) run() {
 				a := game.Addrs[key]
 				a.Status = res.status
 				game.Addrs[key] = a
+				c.notifyGameUpdate(res.id)
 			}
 		case resChan := <-c.requestGamesChan:
 			resChan <- c.copyState()
@@ -199,6 +212,16 @@ type CacheItem struct {
 	Addrs map[string]CacheItemAddr // indexed by cacheAddrKey
 }
 
+// Clone creates a deep copy of the cache item.
+func (g *CacheItem) Clone() CacheItem {
+	g2 := *g
+	g2.Addrs = make(map[string]CacheItemAddr)
+	for key, addr := range g.Addrs {
+		g2.Addrs[key] = addr
+	}
+	return g2
+}
+
 func cacheAddrKey(a net.Addr) string {
 	return fmt.Sprintf("%s:%s", a.Network(), a.String())
 }
@@ -207,4 +230,10 @@ func cacheAddrKey(a net.Addr) string {
 type CacheItemAddr struct {
 	Addr   net.Addr
 	Status ConnectStatus
+}
+
+// CacheUpdate is the broadcasted via Cache.GameUpdates
+type CacheUpdate struct {
+	ID int
+	G  *CacheItem // might be nil for deleted games
 }

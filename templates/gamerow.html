@@ -1,6 +1,6 @@
 {{/* Parameters: .ID .G .LeagueURL */}}
 {{ $status := OverallStatus .G }}
-<tr class="{{ StatusToString $status "table-success" "table-warning" "table-danger" }}">
+<tr id="game{{.ID}}" class="{{ StatusToString $status "table-success" "table-warning" "table-danger" }}">
   <td><a href="clonk://{{.LeagueURL}}?action=query&game_id={{.ID}}">{{.ID}}</a></td>
   <td>{{.G.Game.Title}}</td>
   <td>{{.G.Game.Host}}</td>
