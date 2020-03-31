@@ -9,10 +9,8 @@
         <th class="text-right">Ports</th>
       </tr>
     </thead>
-    {{$statusMap := .Status}}
     {{ range $id, $g := .Games }}
-      {{$status := index $statusMap $id}}
-      {{ template "gamerow.html" dict "ID" $id "G" $g "Status" $status "LeagueURL" $.LeagueURL }}
+      {{ template "gamerow.html" dict "ID" $id "G" $g "LeagueURL" $.LeagueURL }}
     {{end}}
   </table>
 </div>

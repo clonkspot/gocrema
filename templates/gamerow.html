@@ -1,18 +1,19 @@
-{{/* Parameters: .ID .G .Status .LeagueURL */}}
-<tr class="{{if eq .Status "success"}}table-success{{else if eq .Status "pending"}}table-warning{{else}}table-danger{{end}}">
+{{/* Parameters: .ID .G .LeagueURL */}}
+{{ $status := OverallStatus .G }}
+<tr class="{{ StatusToString $status "table-success" "table-warning" "table-danger" }}">
   <td><a href="clonk://{{.LeagueURL}}?action=query&game_id={{.ID}}">{{.ID}}</a></td>
   <td>{{.G.Game.Title}}</td>
   <td>{{.G.Game.Host}}</td>
   <td class="text-right">
-    <button class="btn btn-sm {{if eq .Status "success"}}btn-success{{else if eq .Status "pending"}}btn-warning{{else}}btn-danger{{end}}" type="button" data-toggle="collapse" data-target="#addresses{{.ID}}" aria-expanded="false" aria-controls="#addresses{{.ID}}">
-      {{if eq .Status "success"}}✓{{else if eq .Status "pending"}}?{{else}}✘{{end}}
+    <button class="btn btn-sm {{ StatusToString $status "btn-success" "btn-warning" "btn-danger" }}" type="button" data-toggle="collapse" data-target="#addresses{{.ID}}" aria-expanded="false" aria-controls="#addresses{{.ID}}">
+      {{ StatusToString $status "✓" "?" "✘" }}
     </button>
     <div class="collapse" id="addresses{{.ID}}">
       {{range $k, $addr := .G.Addrs}}
-      <span class="badge {{if eq $addr.Status 1}}badge-success{{else if eq $addr.Status 0}}badge-warning{{else}}badge-danger{{end}}">
-        {{$k}}
-      </span>
-    {{end}}
+        <span class="badge {{ StatusToString $addr.Status "badge-success" "badge-warning" "badge-danger" }}">
+          {{$k}}
+        </span>
+      {{end}}
     </div>
   </td>
 </tr>

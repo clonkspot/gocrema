@@ -9,7 +9,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/Masterminds/sprig/v3"
 	"github.com/apex/log"
@@ -83,43 +82,40 @@ func main() {
 	go monitorGames(cache)
 
 	r := gin.Default()
-	r.SetFuncMap(sprig.FuncMap())
+	funcmap := sprig.FuncMap()
+	funcmap["OverallStatus"] = func(g CacheItem) ConnectStatus {
+		s := ConnectStatusFailure
+		for _, addr := range g.Addrs {
+			switch addr.Status {
+			case ConnectStatusSuccess:
+				return ConnectStatusSuccess
+			case ConnectStatusPending:
+				s = ConnectStatusPending
+			}
+		}
+		return s
+	}
+	funcmap["StatusToString"] = func(s ConnectStatus, success, pending, failure string) (string, error) {
+		switch s {
+		case ConnectStatusSuccess:
+			return success, nil
+		case ConnectStatusPending:
+			return pending, nil
+		case ConnectStatusFailure:
+			return failure, nil
+		}
+		return "", fmt.Errorf("StatusToString: unknown status %d", s)
+	}
+	r.SetFuncMap(funcmap)
 	r.LoadHTMLGlob("templates/*")
 	r.GET("/", func(c *gin.Context) {
 		games := cache.Get()
-		status := make(map[int]string)
-		for id, g := range games {
-			s := "failure"
-		addrloop:
-			for _, addr := range g.Addrs {
-				switch addr.Status {
-				case ConnectStatusSuccess:
-					s = "success"
-					break addrloop
-				case ConnectStatusPending:
-					s = "pending"
-				}
-			}
-			status[id] = s
-		}
 		c.HTML(http.StatusOK, "layout.html", gin.H{
 			"Games":     games,
-			"Status":    status,
 			"LeagueURL": strings.Replace(LeagueURL, "http://", "", 1),
 		})
 	})
 	r.Run()
-	for {
-		time.Sleep(10 * time.Second)
-		games := cache.Get()
-		for _, g := range games {
-			fmt.Printf("%s on %s (#%d)\n", g.Game.Title, g.Game.Host, g.Game.ID)
-			for key, addr := range g.Addrs {
-				fmt.Printf(" - %s: %s\n", key, addr.Status)
-			}
-			fmt.Println()
-		}
-	}
 }
 
 func monitorGames(c *Cache) {
