@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Masterminds/sprig/v3"
 	"github.com/apex/log"
 	"github.com/apex/log/handlers/text"
 	"github.com/clonkspot/gocrema/eventsource"
@@ -82,6 +83,7 @@ func main() {
 	go monitorGames(cache)
 
 	r := gin.Default()
+	r.SetFuncMap(sprig.FuncMap())
 	r.LoadHTMLGlob("templates/*")
 	r.GET("/", func(c *gin.Context) {
 		games := cache.Get()

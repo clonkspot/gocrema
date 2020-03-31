@@ -9,27 +9,10 @@
         <th class="text-right">Ports</th>
       </tr>
     </thead>
-    {{$leagueURL := .LeagueURL}}
     {{$statusMap := .Status}}
     {{ range $id, $g := .Games }}
       {{$status := index $statusMap $id}}
-      <tr class="{{if eq $status "success"}}table-success{{else if eq $status "pending"}}table-warning{{else}}table-danger{{end}}">
-        <td><a href="clonk://{{$leagueURL}}?action=query&game_id={{$id}}">{{$id}}</a></td>
-        <td>{{$g.Game.Title}}</td>
-        <td>{{$g.Game.Host}}</td>
-        <td class="text-right">
-          <button class="btn btn-sm {{if eq $status "success"}}btn-success{{else if eq $status "pending"}}btn-warning{{else}}btn-danger{{end}}" type="button" data-toggle="collapse" data-target="#addresses{{$id}}" aria-expanded="false" aria-controls="#addresses{{$id}}">
-            {{if eq $status "success"}}✓{{else if eq $status "pending"}}?{{else}}✘{{end}}
-          </button>
-          <div class="collapse" id="addresses{{$id}}">
-            {{range $k, $addr := $g.Addrs}}
-            <span class="badge {{if eq $addr.Status 1}}badge-success{{else if eq $addr.Status 0}}badge-warning{{else}}badge-danger{{end}}">
-              {{$k}}
-            </span>
-          {{end}}
-          </div>
-        </td>
-      </tr>
+      {{ template "gamerow.html" dict "ID" $id "G" $g "Status" $status "LeagueURL" $.LeagueURL }}
     {{end}}
   </table>
 </div>
