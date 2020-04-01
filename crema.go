@@ -118,28 +118,47 @@ func main() {
 			"LeagueURL": tmplLeagueURL,
 		})
 	})
+	renderRow := func(id int, g *CacheItem) string {
+		// this kind of sucks
+		html := r.HTMLRender.Instance("gamerow.html", gin.H{
+			"ID":        g.Game.ID,
+			"G":         g,
+			"LeagueURL": tmplLeagueURL,
+		}).(render.HTML)
+
+		var output bytes.Buffer
+		if err := html.Template.ExecuteTemplate(&output, html.Name, html.Data); err != nil {
+			log.WithError(err).Error("rendering row template failed")
+			return ""
+		}
+		return output.String()
+	}
 	r.GET("/updates", func(c *gin.Context) {
 		c.Header("Content-Type", "text/event-stream")
 		updates := cache.GameUpdates.Register()
 		defer cache.GameUpdates.Unregister(updates)
+
+		// init: send update event for all games and init event with existing ids
+		games := cache.Get()
+		ids := make([]int, 0, len(games))
+		for id, g := range games {
+			ids = append(ids, id)
+			c.SSEvent("update", gin.H{
+				"id":   id,
+				"html": renderRow(id, &g),
+			})
+		}
+		c.SSEvent("init", gin.H{"ids": ids})
+		if f, ok := c.Writer.(http.Flusher); ok {
+			f.Flush()
+		}
+
 		for update := range updates {
 			u := update.(*CacheUpdate)
 			if u.G != nil {
-				// this kind of sucks
-				html := r.HTMLRender.Instance("gamerow.html", gin.H{
-					"ID":        u.ID,
-					"G":         u.G,
-					"LeagueURL": tmplLeagueURL,
-				}).(render.HTML)
-
-				var output bytes.Buffer
-				if err := html.Template.ExecuteTemplate(&output, html.Name, html.Data); err != nil {
-					c.Error(err)
-					return
-				}
 				c.SSEvent("update", gin.H{
 					"id":   u.ID,
-					"html": output.String(),
+					"html": renderRow(u.ID, u.G),
 				})
 			} else {
 				c.SSEvent("delete", gin.H{"id": u.ID})

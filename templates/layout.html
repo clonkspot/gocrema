@@ -25,6 +25,10 @@
 
     <script>
 var es = new EventSource('/updates')
+es.addEventListener('init', function(e) {
+  var data = JSON.parse(e.data)
+  $('tr[id^=game]').filter(':not('+data.ids.map(id => '#game'+id).join(',')+')').remove()
+})
 es.addEventListener('update', function(e) {
   var data = JSON.parse(e.data)
   var el = $('#game'+data.id)
