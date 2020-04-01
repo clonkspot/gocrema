@@ -2,6 +2,10 @@ package main
 
 import "container/list"
 
+// notifierBufSize specifies how many messages to buffer.
+// The channel is closed once the buffer
+const notifierBufSize = 10
+
 type Notifier struct {
 	st chan notifierState
 }
@@ -17,7 +21,7 @@ func NewNotifier() *Notifier {
 }
 
 func (n *Notifier) Register() <-chan interface{} {
-	c := make(chan interface{}, 1)
+	c := make(chan interface{}, notifierBufSize)
 	st := <-n.st
 	st.wait.PushBack(c)
 	n.st <- st
@@ -39,7 +43,14 @@ func (n *Notifier) Notify(event interface{}) {
 	st := <-n.st
 	for e := st.wait.Front(); e != nil; e = e.Next() {
 		c := e.Value.(chan interface{})
-		c <- event
+		select {
+		case c <- event:
+			// ok
+		default:
+			// would block - remove
+			st.wait.Remove(e)
+			close(c)
+		}
 	}
 	n.st <- st
 }
