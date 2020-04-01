@@ -108,6 +108,10 @@ func main() {
 		}
 		return "", fmt.Errorf("StatusToString: unknown status %d", s)
 	}
+	markupre := regexp.MustCompile(`<c [0-9a-f]{6}>|<\/c>|<\/?i>`)
+	funcmap["RemoveMarkup"] = func(s string) string {
+		return markupre.ReplaceAllString(s, "")
+	}
 	r.SetFuncMap(funcmap)
 	r.LoadHTMLGlob("templates/*")
 	tmplLeagueURL := strings.Replace(LeagueURL, "http://", "", 1)
