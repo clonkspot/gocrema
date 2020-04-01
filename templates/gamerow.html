@@ -3,8 +3,12 @@
 <tr id="game{{.ID}}" class="{{ StatusToString $status "table-success" "table-warning" "table-danger" }}">
   <td><a href="clonk://{{.LeagueURL}}?action=query&game_id={{.ID}}">{{.ID}}</a></td>
   <td><img class="titlepng" src="https://clonkspot.org/images/games/Title.png/{{.G.Game.Scenario.Filename | replace "\\" "/"}}?hash={{.G.Game.Scenario.ContentsCRC}}"></td>
-  <td>{{.G.Game.Title}}</td>
-  <td>{{.G.Game.Host}}</td>
+  <td><strong>{{.G.Game.Title}}</strong><br>{{.G.Game.Host}}</td>
+  <td>
+    {{range .G.Game.Players}}
+      <span class="playername">{{.Name}}</span>
+    {{ end }}
+  </td>
   <td class="text-right ports">
     <button class="btn btn-sm {{ StatusToString $status "btn-success" "btn-warning" "btn-danger" }}" type="button" data-toggle="collapse" data-target="#addresses{{.ID}}" aria-expanded="false" aria-controls="#addresses{{.ID}}">
       {{ StatusToString $status "✓" "?" "✘" }}
