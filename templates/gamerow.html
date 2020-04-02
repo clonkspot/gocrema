@@ -1,13 +1,18 @@
 {{/* Parameters: .ID .G .LeagueURL */}}
 {{ $status := OverallStatus .G }}
 <tr id="game{{.ID}}" class="{{ StatusToString $status "table-success" "table-warning" "table-danger" }}">
-  <td><a href="clonk://{{.LeagueURL}}?action=query&game_id={{.ID}}">{{.ID}}</a></td>
-  <td><img class="titlepng" src="https://clonkspot.org/images/games/Title.png/{{.G.Game.Scenario.Filename | replace "\\" "/"}}?hash={{.G.Game.Scenario.ContentsCRC}}"></td>
   <td>
-    <strong>{{.G.Game.Title | RemoveMarkup}}</strong><br>
-    {{.G.Game.Host}}
+    <a href="clonk://{{.LeagueURL}}?action=query&game_id={{.ID}}">{{.ID}}</a><br>
+    {{.G.Game.Status}}<br>
+    {{if .G.Game.Flags.PasswordNeeded}}<abbr class="icon" title="Passwort">🔐</abbr>{{end}}
+    {{if .G.Game.Flags.JoinAllowed}}<abbr class="icon" title="Beitritt möglich">🚶</abbr>{{end}}
   </td>
-  <td>
+  <td><img class="titlepng" src="https://clonkspot.org/images/games/Title.png/{{.G.Game.Scenario.Filename | replace "\\" "/"}}?hash={{.G.Game.Scenario.ContentsCRC}}"></td>
+  <td title="{{.G.Game.Comment | RemoveMarkup}}">
+    <strong>{{.G.Game.Title | RemoveMarkup}}</strong><br>
+    <span>{{.G.Game.Host}}</span>
+  </td>
+  <td title="{{len .G.Game.Players}} / {{.G.Game.MaxPlayers}}">
     {{range .G.Game.Players}}
       <span class="playername">{{.Name}}</span>
     {{ end }}
