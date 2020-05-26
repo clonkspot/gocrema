@@ -90,6 +90,7 @@ func tryConnectUDP(addr *net.UDPAddr) bool {
 	if err != nil {
 		return false
 	}
+	defer conn.Close()
 	hdr.WriteTo(conn)
 	conn.SetReadDeadline(time.Now().Add(connectTimeout))
 	buf := make([]byte, 1500)
