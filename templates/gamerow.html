@@ -1,6 +1,6 @@
 {{/* Parameters: .ID .G .LeagueURL */}}
 {{ $status := OverallStatus .G }}
-<tr id="game{{.ID}}" class="{{ StatusToString $status "table-success" "table-warning" "table-danger" }}">
+<tr id="game{{.ID}}" class="{{ StatusToString $status "table-success" "table-warning" "table-danger" }}" type="button" data-toggle="collapse" data-target="#addresses{{.ID}}" aria-expanded="false" aria-controls="#addresses{{.ID}}">
   <td>
     <a href="clonk://{{.LeagueURL}}?action=query&game_id={{.ID}}">{{.ID}}</a><br>
     {{.G.Game.Status}}<br>
@@ -12,7 +12,7 @@
     <strong>{{.G.Game.Title | RemoveMarkup}}</strong><br>
     <span>{{.G.Game.Host}}</span>
   </td>
-  <td title="{{len .G.Game.Players}} / {{.G.Game.MaxPlayers}}">
+  <td title="Players in lobby: {{len .G.Game.Players}} / {{.G.Game.MaxPlayers}}">
     {{range .G.Game.Players}}
       <span class="playername">{{.Name}}</span>
     {{ end }}
