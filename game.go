@@ -2,16 +2,18 @@ package main
 
 // LeagueGame is a JSON-encoded game as returned by game_events.php
 type LeagueGame struct {
-	ID         int    `json:"id"`
-	Title      string `json:"title"`
-	Status     string `json:"status"`
-	Type       string `json:"type"`
-	Comment    string `json:"comment"`
-	MaxPlayers int    `json:"maxPlayers"`
-	Host       string `json:"host"`
-	Created    string `json:"created"`
-	Updated    string `json:"updated"`
-	Flags      struct {
+	ID          int    `json:"id"`
+	Title       string `json:"title"`
+	Status      string `json:"status"`
+	Type        string `json:"type"`
+	Comment     string `json:"comment"`
+	MaxPlayers  int    `json:"maxPlayers"`
+	Host        string `json:"host"`
+	Created     string `json:"created"`
+	Updated     string `json:"updated"`
+	Engine      string `json:"engine"`
+	EngineBuild string `json:"engineBuild"`
+	Flags       struct {
 		JoinAllowed    bool `json:"joinAllowed"`
 		PasswordNeeded bool `json:"passwordNeeded"`
 	} `json:"flags"`
