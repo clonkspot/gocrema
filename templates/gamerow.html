@@ -3,9 +3,8 @@
 <tr id="game{{.ID}}" class="{{ StatusToString $status "table-success" "table-warning" "table-danger" }}">
   <td>
     <a href="clonk://{{.LeagueURL}}?action=query&game_id={{.ID}}">{{.ID}}</a><br>
-    {{.G.Game.Status}}<br>
-    {{if .G.Game.Flags.PasswordNeeded}}<abbr class="icon" title="Passwort">🔐</abbr>{{end}}
-    {{if .G.Game.Flags.JoinAllowed}}<abbr class="icon" title="Beitritt möglich">🚶</abbr>{{end}}
+    {{.G.Game.Status}} {{if .G.Game.Flags.PasswordNeeded}}<abbr class="icon" title="Passwort">🔐</abbr>{{end}} {{if .G.Game.Flags.JoinAllowed}}<abbr class="icon" title="Beitritt möglich">🚶</abbr>{{end}}<br>
+    <span>{{.G.Game.Engine}} {{.G.Game.EngineBuild}}</span>
   </td>
   <td><img class="titlepng" src="https://clonkspot.org/images/games/Title.png/{{.G.Game.Scenario.Filename | replace "\\" "/"}}?hash={{.G.Game.Scenario.ContentsCRC}}"></td>
   <td title="{{.G.Game.Comment | RemoveMarkup}}">
