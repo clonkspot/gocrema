@@ -1,0 +1,23 @@
+image: archlinux
+packages:
+  - go
+  - rsync
+secrets:
+  - 1073e969-9be9-4809-aac2-076b39494398 # deploy key
+environment:
+  SSH_KEY: 1073e969-9be9-4809-aac2-076b39494398
+  HOST: clonkspot@openclonk.org
+sources:
+  - https://github.com/clonkspot/gocrema
+
+tasks:
+  - build: |
+      cd gocrema
+      go build
+
+      [[ "$GITHUB_REF" = refs/heads/master ]] || complete-build
+  - deploy: |
+      cd gocrema
+      sshopts="ssh -o StrictHostKeyChecking=no -i $HOME/.ssh/$SSH_KEY"
+      rsync --rsh="$sshopts" -rv --delete gocrema templates $HOST:~/deploy/gocrema/
+      $sshopts $HOST systemctl --user restart gocrema
