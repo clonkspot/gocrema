@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -172,7 +173,7 @@ func main() {
 			}
 		}
 	})
-	r.Run()
+	r.Run(os.Getenv("PORT"))
 }
 
 func monitorGames(c *Cache) {
