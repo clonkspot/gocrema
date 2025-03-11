@@ -10,7 +10,6 @@ import (
 	"os"
 	"regexp"
 	"strconv"
-	"strings"
 
 	"github.com/Masterminds/sprig/v3"
 	"github.com/apex/log"
@@ -21,10 +20,12 @@ import (
 )
 
 // GameEventsURL is the URL to the league event stream.
-var GameEventsURL = "https://clonkspot.org/league/game_events.php"
+var GameEventsURL = "https://league.clonkspot.org/game_events"
 
 // LeagueURL is the URL to the league server.
-var LeagueURL = "http://league.clonkspot.org:80/"
+var LeagueURL = "https://league.clonkspot.org/league.php"
+// LeagueURL is the URL to the league server for the Clonk client.
+var LeagueURLClonk = "league.clonkspot.org:80"
 
 func getGameAddresses(id int) ([]net.Addr, error) {
 	url := fmt.Sprintf("%s?action=query&game_id=%d", LeagueURL, id)
@@ -115,12 +116,11 @@ func main() {
 	}
 	r.SetFuncMap(funcmap)
 	r.LoadHTMLGlob("templates/*")
-	tmplLeagueURL := strings.Replace(LeagueURL, "http://", "", 1)
 	r.GET("/", func(c *gin.Context) {
 		games := cache.Get()
 		c.HTML(http.StatusOK, "layout.html", gin.H{
 			"Games":     games,
-			"LeagueURL": tmplLeagueURL,
+			"LeagueURL": LeagueURLClonk,
 		})
 	})
 	renderRow := func(id int, g *CacheItem) string {
@@ -128,7 +128,7 @@ func main() {
 		html := r.HTMLRender.Instance("gamerow.html", gin.H{
 			"ID":        g.Game.ID,
 			"G":         g,
-			"LeagueURL": tmplLeagueURL,
+			"LeagueURL": LeagueURLClonk,
 		}).(render.HTML)
 
 		var output bytes.Buffer
