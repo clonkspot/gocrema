@@ -58,7 +58,9 @@ func New(url string) *EventSource {
 
 // receive connects to the url and receives messages.
 func (es *EventSource) receive() {
-	client := &http.Client{}
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	tr.DisableCompression = true
+	client := &http.Client{Transport: tr}
 	lastEventID := ""
 	retry := time.Duration(DefaultRetry)
 	timeout := false
