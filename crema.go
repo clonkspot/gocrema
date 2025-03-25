@@ -173,7 +173,16 @@ func main() {
 			}
 		}
 	})
-	r.Run(os.Getenv("PORT"))
+
+	// Initialize variable with default value
+	var listenAddress string
+	if os.Getenv("ADDRESS") != "" {
+		listenAddress = os.Getenv("ADDRESS")
+	} else {
+		listenAddress = "127.0.0.1:8080"
+		log.Warn("Environment variable \"ADDRESS\" not set. Using default address 127.0.0.1:8080")
+	}
+	r.Run(listenAddress)
 }
 
 func monitorGames(c *Cache) {
